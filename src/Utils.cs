@@ -28,18 +28,6 @@ static public class Utils
         return new Vector(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
     }
 
-    static public CDynamicProp CreateProp(string model, Vector position)
-    {
-        CDynamicProp prop = Utilities.CreateEntityByName<CDynamicProp>("prop_dynamic")!;
-        prop.DispatchSpawn();
-        prop.NoGhostCollision = true;
-        prop.Collision.CollisionGroup = 0;
-        prop.Teleport(position, new QAngle(0, 0, 0), new Vector(0, 0, 0));
-        prop.SetModel(model);
-
-        return prop;
-    }
-
     static public class Spawns
     {
         static public Vector[] Inferno = {
