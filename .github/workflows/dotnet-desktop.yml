@@ -21,11 +21,17 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
-      - name: Build
-        run: dotnet build --configuration Release --no-restore
+      - name: Build Release
+        run: dotnet build ./src/PropHunt.csproj --configuration Release --no-restore
 
-      - name: Publish
-        run: dotnet publish --configuration Release --no-restore --output ./publish
+      - name: Build Debug
+        run: dotnet build ./src/PropHunt.csproj --configuration Debug --no-restore
+
+      - name: Publish Release
+        run: dotnet publish ./src/PropHunt.csproj --configuration Release --no-restore --output ./publish/Release
+
+      - name: Publish Debug
+        run: dotnet publish ./src/PropHunt.csproj --configuration Debug --no-restore --output ./publish/Debug
 
       - name: Generate Tag
         id: create_tag
