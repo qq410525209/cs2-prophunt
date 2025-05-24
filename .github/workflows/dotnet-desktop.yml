@@ -25,9 +25,9 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: 安装 GitVersion
-        uses: gittools/actions/gitversion/setup@v0.11.0 # 检查最新版本
+        uses: gittools/actions/gitversion/setup@v0.11.0 # 确保使用最新的稳定版本，可以去GitHub仓库查看
         with:
-          targetPath: '.' # 已修正为 targetPath
+          versionSpec: '5.x' # 这一行是关键，确保它存在且缩进正确
 
       - name: 获取 GitVersion
         id: gitversion
