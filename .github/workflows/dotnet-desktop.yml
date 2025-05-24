@@ -1,0 +1,55 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*' # 只有推送形如 v1.2.3 的 tag 时会触发 
+    branches:
+      - '**'          # 所有分支
+    paths:
+      - '**'          # 任何文件变更
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'   # 请根据项目实际.NET版本调整
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Publish
+        run: dotnet publish --configuration Release --no-restore --output ./publish
+
+      - name: Archive build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: cs2-prophunt
+          path: ./publish
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cs2-prophunt
+          path: ./publish
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./publish/**
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
