@@ -65,7 +65,7 @@ jobs:
         run: dotnet publish src/PropHunt.csproj --configuration Debug --no-restore --output ./publish/Debug
 
       - name: 打包发布文件
-        run: |
+        run: | # 注意这里的管道符 `|`，它表示接下来的多行都是一个单命令字符串
           PLUGIN_NAME="PropHunt" # 根据您的项目名称设置
 
           # 确保 artifacts 目录存在
