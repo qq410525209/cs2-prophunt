@@ -49,7 +49,10 @@ jobs:
           PLUGIN_NAME="PropHunt"
           VERSION="${{ steps.gitversion.outputs.semVer }}"
           mkdir -p artifacts
-          zip -r "artifacts/${PLUGIN_NAME}-Release-v${VERSION}.zip" ./src/bin/Release/net8.0/
+          # 复制 publish 到一个新目录 cs2-prophunt
+          cp -r ./src/bin/Release/net8.0/publish ./cs2-prophunt
+          # 打包 cs2-prophunt 目录
+          zip -r artifacts/${PLUGIN_NAME}-Release-v${VERSION}.zip cs2-prophunt
           echo "打包完成: artifacts/${PLUGIN_NAME}-Release-v${VERSION}.zip"
 
       - name: 生成并推送发布标签
