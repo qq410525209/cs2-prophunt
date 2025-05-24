@@ -1,16 +1,12 @@
-name: Build and Release
+name: Build and Release on Push
 
 on:
   push:
-    tags:
-      - 'v*.*.*' # 只有推送形如 v1.2.3 的 tag 时会触发 
     branches:
-      - '**'          # 所有分支
-    paths:
-      - '**'          # 任何文件变更
+      - '**'      # 监听所有分支
 
 jobs:
-  build:
+  build-release:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,7 +16,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'   # 请根据项目实际.NET版本调整
+          dotnet-version: '8.0.x'
 
       - name: Restore dependencies
         run: dotnet restore
@@ -31,25 +27,22 @@ jobs:
       - name: Publish
         run: dotnet publish --configuration Release --no-restore --output ./publish
 
-      - name: Archive build output
-        uses: actions/upload-artifact@v4
-        with:
-          name: cs2-prophunt
-          path: ./publish
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: cs2-prophunt
-          path: ./publish
+      - name: Generate Tag
+        id: create_tag
+        run: |
+          TAG="auto-$(date +'%Y%m%d%H%M%S')"
+          echo "TAG_NAME=$TAG" >> $GITHUB_ENV
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag $TAG
+          git push origin $TAG
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.TAG_NAME }}
           files: ./publish/**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
