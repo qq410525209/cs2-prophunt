@@ -3,8 +3,7 @@ name: .NET 项目构建与发布
 on:
   push:
     branches:
-      - 'main' # 通常只在主分支上自动生成版本和发布，或者根据您的分支策略调整
-      - 'release/**' # 也可以监听发布分支
+      - '**'      # 监听所有分支
 
 jobs:
   build-release:
