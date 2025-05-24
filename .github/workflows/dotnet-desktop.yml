@@ -1,54 +1,79 @@
-name: Build and Release on Push
+name: .NET 项目构建与发布
 
 on:
   push:
     branches:
-      - '**'      # 监听所有分支
+      - 'main' # 通常只在主分支上自动生成版本和发布，或者根据您的分支策略调整
+      - 'release/**' # 也可以监听发布分支
 
 jobs:
   build-release:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
+      - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # GitVersion 需要完整的 Git 历史来计算版本
 
-      - name: Setup .NET
+      - name: 设置 .NET 环境
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Restore dependencies
+      - name: 安装 GitVersion
+        uses: gittools/actions/gitversion/setup@v0.11.0 # 检查最新版本
+        with:
+          versionSpec: '5.x' # 指定 GitVersion 版本
+
+      - name: 获取 GitVersion
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v0.11.0 # 检查最新版本
+        with:
+          target-path: '.'
+
+      - name: 显示版本号
+        run: |
+          echo "Semantic Version: ${{ steps.gitversion.outputs.semVer }}"
+          echo "Full SemVer: ${{ steps.gitversion.outputs.fullSemVer }}"
+
+      - name: 恢复依赖项
         run: dotnet restore
 
-      - name: Build Release
-        run: dotnet build ./src/PropHunt.csproj --configuration Release --no-restore
+      # 构建并发布 Release 版本
+      - name: 构建 Release 版本
+        run: dotnet build --configuration Release --no-restore
 
-      - name: Build Debug
-        run: dotnet build ./src/PropHunt.csproj --configuration Debug --no-restore
+      - name: 发布 Release 版本
+        run: dotnet publish --configuration Release --no-restore --output ./publish/Release
 
-      - name: Publish Release
-        run: dotnet publish ./src/PropHunt.csproj --configuration Release --no-restore --output ./publish/Release
+      # 构建并发布 Debug 版本
+      - name: 构建 Debug 版本
+        run: dotnet build --configuration Debug --no-restore
 
-      - name: Publish Debug
-        run: dotnet publish ./src/PropHunt.csproj --configuration Debug --no-restore --output ./publish/Debug
+      - name: 发布 Debug 版本
+        run: dotnet publish --configuration Debug --no-restore --output ./publish/Debug
 
-      - name: Generate Tag
+      - name: 生成发布标签 (使用 GitVersion)
         id: create_tag
         run: |
-          TAG="auto-$(date +'%Y%m%d%H%M%S')"
-          echo "TAG_NAME=$TAG" >> $GITHUB_ENV
+          TAG_NAME="v${{ steps.gitversion.outputs.semVer }}"
+          echo "Generated Tag Name: $TAG_NAME"
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag $TAG
-          git push origin $TAG
+          git tag $TAG_NAME
+          git push origin $TAG_NAME
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create Release
+      - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG_NAME }}
-          files: ./publish/**
+          # *** 新增配置，自动生成发布说明 ***
+          generate_release_notes: true
+          files: |
+            ./publish/Release/**
+            ./publish/Debug/**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
