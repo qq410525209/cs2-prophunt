@@ -2,17 +2,27 @@ name: .NET 项目构建与发布
 
 on:
   push:
-    branches:
-      - '**'      # 监听所有分支
+    # 建议此处限制监听分支，避免在开发分支上频繁生成和推送版本标签。
+    # 仅在 'main' 或 'master' 分支（或发布分支）上自动生成版本和发布是更常见的实践。
+    分支:
+      # - 'main' # 例如：只在 'main' 分支上触发
+      - 'master' # 如果您的主分支是 'master'
+      # - 'release/**' # 如果有专门的发布分支
+      - '**' # 如果您确实需要在所有分支都尝试运行，请理解可能导致标签冲突的概率增加
 
 jobs:
   build-release:
     runs-on: ubuntu-latest
+    permissions:
+      # 显式授予对仓库内容的写入权限，这是创建和推送标签、以及创建 GitHub Release 所必需的。
+      contents: write
+
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # GitVersion 需要完整的 Git 历史来计算版本
+          # GitVersion 需要完整的 Git 历史来计算版本，所以 fetch-depth 必须为 0
+          fetch-depth: 0
 
       - name: 设置 .NET 环境
         uses: actions/setup-dotnet@v4
@@ -32,8 +42,8 @@ jobs:
 
       - name: 显示版本号
         run: |
-          echo "Semantic Version: ${{ steps.gitversion.outputs.semVer }}"
-          echo "Full SemVer: ${{ steps.gitversion.outputs.fullSemVer }}"
+          echo "语义化版本号: ${{ steps.gitversion.outputs.semVer }}"
+          echo "完整版本号: ${{ steps.gitversion.outputs.fullSemVer }}"
 
       - name: 恢复依赖项
         run: dotnet restore
@@ -43,6 +53,7 @@ jobs:
         run: dotnet build --configuration Release --no-restore
 
       - name: 发布 Release 版本
+        # 将输出路径改为 Release 子目录，解决 `--output` 警告
         run: dotnet publish --configuration Release --no-restore --output ./publish/Release
 
       # 构建并发布 Debug 版本
@@ -50,29 +61,38 @@ jobs:
         run: dotnet build --configuration Debug --no-restore
 
       - name: 发布 Debug 版本
+        # 将输出路径改为 Debug 子目录
         run: dotnet publish --configuration Debug --no-restore --output ./publish/Debug
 
-      - name: 生成发布标签 (使用 GitVersion)
+      - name: 生成并推送发布标签
         id: create_tag
         run: |
           TAG_NAME="v${{ steps.gitversion.outputs.semVer }}"
-          echo "Generated Tag Name: $TAG_NAME"
-          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+          echo "即将生成的标签名称: $TAG_NAME"
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV # 将标签名存入环境变量供后续步骤使用
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag $TAG_NAME
-          git push origin $TAG_NAME
+
+          # 检查标签是否已经存在于远程仓库
+          # 如果标签已存在，就跳过创建和推送标签的步骤，避免冲突。
+          if git ls-remote origin refs/tags/$TAG_NAME | grep -q $TAG_NAME; then
+            echo "警告：标签 $TAG_NAME 已存在于远程仓库。跳过标签创建和推送。"
+          else
+            echo "正在创建并推送新标签: $TAG_NAME"
+            git tag $TAG_NAME
+            git push origin $TAG_NAME
+          fi
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 确保拥有推送标签的权限
 
       - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.TAG_NAME }}
-          # *** 新增配置，自动生成发布说明 ***
-          generate_release_notes: true
+          tag_name: ${{ env.TAG_NAME }} # 使用 GitVersion 生成的标签名
+          generate_release_notes: true # 自动生成发布说明
           files: |
-            ./publish/Release/**
-            ./publish/Debug/**
+            ./publish/Release/** # 包含 Release 构建的文件
+            ./publish/Debug/** # 包含 Debug 构建的文件
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 确保拥有创建 Release 的权限
