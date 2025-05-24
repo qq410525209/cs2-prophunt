@@ -2,27 +2,23 @@ name: .NET 项目构建与发布
 
 on:
   push:
-    # 建议此处限制监听分支，避免在开发分支上频繁生成和推送版本标签。
-    # 仅在 'main' 或 'master' 分支（或发布分支）上自动生成版本和发布是更常见的实践。
-    分支:
-      # - 'main' # 例如：只在 'main' 分支上触发
-      - 'master' # 如果您的主分支是 'master'
+    branches:
+      # - 'main' # 建议将监听分支改为 'main' 或 'master'
+      # - 'master'
       # - 'release/**' # 如果有专门的发布分支
-      - '**' # 如果您确实需要在所有分支都尝试运行，请理解可能导致标签冲突的概率增加
+       - '**' # 如果您确实需要在所有分支都尝试运行，请理解可能导致标签冲突的概率增加
 
 jobs:
   build-release:
     runs-on: ubuntu-latest
     permissions:
-      # 显式授予对仓库内容的写入权限，这是创建和推送标签、以及创建 GitHub Release 所必需的。
-      contents: write
+      contents: write # 显式授予对仓库内容的写入权限，用于创建标签和 Release
 
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
-          # GitVersion 需要完整的 Git 历史来计算版本，所以 fetch-depth 必须为 0
-          fetch-depth: 0
+          fetch-depth: 0 # GitVersion 需要完整的 Git 历史来计算版本
 
       - name: 设置 .NET 环境
         uses: actions/setup-dotnet@v4
@@ -38,7 +34,8 @@ jobs:
         id: gitversion
         uses: gittools/actions/gitversion/execute@v0.11.0 # 检查最新版本
         with:
-          target-path: '.'
+          # --- 解决 GitVersion 警告：'target-path' -> 'targetPath' ---
+          targetPath: '.'
 
       - name: 显示版本号
         run: |
@@ -48,21 +45,38 @@ jobs:
       - name: 恢复依赖项
         run: dotnet restore
 
-      # 构建并发布 Release 版本
+      # 构建 Release 版本 (移除 --output)
       - name: 构建 Release 版本
+        # --- 解决 dotnet build --output 警告：移除 --output ---
         run: dotnet build --configuration Release --no-restore
 
+      # 发布 Release 版本
       - name: 发布 Release 版本
-        # 将输出路径改为 Release 子目录，解决 `--output` 警告
         run: dotnet publish --configuration Release --no-restore --output ./publish/Release
 
-      # 构建并发布 Debug 版本
+      # 构建 Debug 版本 (移除 --output)
       - name: 构建 Debug 版本
+        # --- 解决 dotnet build --output 警告：移除 --output ---
         run: dotnet build --configuration Debug --no-restore
 
+      # 发布 Debug 版本
       - name: 发布 Debug 版本
-        # 将输出路径改为 Debug 子目录
         run: dotnet publish --configuration Debug --no-restore --output ./publish/Debug
+
+      # --- 新增步骤：打包发布文件 ---
+      - name: 打包发布文件
+        run: |
+          # 假设您的项目名称为 'MyPlugin' 或类似
+          # 您可以根据实际项目名称调整此处
+          PLUGIN_NAME="cs2-prophunt" # <<<<<<<<<<<<<<<< 请在这里替换为您的插件或项目名称
+
+          # 打包 Release 版本
+          zip -r "${PLUGIN_NAME}-Release-v${{ steps.gitversion.outputs.semVer }}.zip" ./publish/Release/
+          echo "打包文件: ${PLUGIN_NAME}-Release-v${{ steps.gitversion.outputs.semVer }}.zip 已创建"
+
+          # 打包 Debug 版本
+          zip -r "${PLUGIN_NAME}-Debug-v${{ steps.gitversion.outputs.semVer }}.zip" ./publish/Debug/
+          echo "打包文件: ${PLUGIN_NAME}-Debug-v${{ steps.gitversion.outputs.semVer }}.zip 已创建"
 
       - name: 生成并推送发布标签
         id: create_tag
@@ -75,7 +89,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # 检查标签是否已经存在于远程仓库
-          # 如果标签已存在，就跳过创建和推送标签的步骤，避免冲突。
           if git ls-remote origin refs/tags/$TAG_NAME | grep -q $TAG_NAME; then
             echo "警告：标签 $TAG_NAME 已存在于远程仓库。跳过标签创建和推送。"
           else
@@ -84,7 +97,7 @@ jobs:
             git push origin $TAG_NAME
           fi
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 确保拥有推送标签的权限
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v2
@@ -92,7 +105,7 @@ jobs:
           tag_name: ${{ env.TAG_NAME }} # 使用 GitVersion 生成的标签名
           generate_release_notes: true # 自动生成发布说明
           files: |
-            ./publish/Release/** # 包含 Release 构建的文件
-            ./publish/Debug/** # 包含 Debug 构建的文件
+            # --- 上传打包好的 .zip 文件 ---
+            ./*.zip # 匹配当前目录下所有 .zip 文件
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 确保拥有创建 Release 的权限
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
