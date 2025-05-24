@@ -51,8 +51,14 @@ jobs:
 
       # 发布 Release 版本
       - name: 发布 Release 版本
-        # 明确指定要发布的 .csproj 文件路径
         run: dotnet publish src/PropHunt.csproj --configuration Release --no-restore --output ./publish/Release
+
+      - name: 打包 Release 插件文件
+        run: |
+          PLUGIN_NAME="PropHunt"
+          mkdir -p artifacts
+          zip -r "artifacts/${PLUGIN_NAME}-Release-v${{ steps.gitversion.outputs.semVer }}.zip" ./src/bin/Release/net8.0/
+          echo "打包文件: artifacts/${PLUGIN_NAME}-Release-v${{ steps.gitversion.outputs.semVer }}.zip 已创建"
 
       # 构建 Debug 版本
       - name: 构建 Debug 版本
